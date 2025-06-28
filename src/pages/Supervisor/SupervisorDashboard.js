@@ -1,0 +1,138 @@
+// contract/frontend/src/pages/Supervisor/SupervisorDashboard.js
+import React, { useEffect, useState, useContext } from 'react';
+import API from '../../api/axios';
+import { toast } from 'react-toastify';
+import { AuthContext } from '../../context/AuthContext';
+import {
+  FaHardHat,
+  FaProjectDiagram,
+  FaClipboardList,
+  FaBoxOpen
+} from 'react-icons/fa';
+
+const SupervisorDashboard = () => {
+  const { user } = useContext(AuthContext);
+  const [summary, setSummary] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchSummary = async () => {
+      if (!user || user.role !== 'supervisor') {
+        setError('Unauthorized access.');
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const res = await API.get('/supervisor/dashboard-summary');
+        setSummary(res.data);
+      } catch (err) {
+        const msg = err.response?.data?.message || 'Failed to fetch dashboard summary.';
+        setError(msg);
+        toast.error('Failed to load dashboard data.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchSummary();
+  }, [user]);
+
+  if (loading) {
+    return <div className="p-4 text-center">Loading dashboard...</div>;
+  }
+
+  if (error) {
+    return <div className="p-4 text-center text-red-600">Error: {error}</div>;
+  }
+
+  if (!summary) {
+    return <div className="p-4 text-center text-gray-600">No summary data available.</div>;
+  }
+
+  return (
+    <div className="p-6 bg-white rounded-lg shadow-md">
+      <h2 className="text-3xl font-bold text-gray-800 mb-6">Supervisor Dashboard</h2>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="bg-indigo-100 p-5 rounded-lg shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-sm text-indigo-700">Assigned Projects</p>
+            <h3 className="text-3xl font-bold text-indigo-900">{summary.assignedSites.length}</h3>
+          </div>
+          <FaProjectDiagram className="text-indigo-600" size={48} />
+        </div>
+
+        <div className="bg-green-100 p-5 rounded-lg shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-sm text-green-700">Total Workers (Across Sites)</p>
+            <h3 className="text-3xl font-bold text-green-900">{summary.totalWorkers}</h3>
+          </div>
+          <FaHardHat className="text-green-600" size={48} />
+        </div>
+      </div>
+
+      {/* Recent Activities */}
+      <div className="bg-gray-50 p-6 rounded-lg shadow-md mb-8">
+        <h3 className="text-2xl font-semibold text-gray-800 mb-4 flex items-center">
+          <FaClipboardList className="mr-3 text-indigo-600" /> Recent Activities
+        </h3>
+        <ul className="divide-y divide-gray-200">
+          {summary.recentActivities.length > 0 ? (
+            summary.recentActivities.map(activity => (
+              <li key={activity._id} className="py-3 flex justify-between items-center">
+                <div>
+                  <p className="text-gray-900 font-medium">{activity.message}</p>
+                  <p className="text-sm text-gray-600">
+                    <span className="font-semibold">Site:</span> {activity.siteId?.name || 'N/A'}
+                  </p>
+                </div>
+                <span className="text-xs text-gray-500">
+                  {new Date(activity.date).toLocaleDateString()}
+                </span>
+              </li>
+            ))
+          ) : (
+            <li className="py-3 text-center text-gray-500">
+              No recent activities found for your assigned sites.
+            </li>
+          )}
+        </ul>
+      </div>
+
+      {/* Recent Material Logs */}
+      <div className="bg-gray-50 p-6 rounded-lg shadow-md">
+        <h3 className="text-2xl font-semibold text-gray-800 mb-4 flex items-center">
+          <FaBoxOpen className="mr-3 text-green-600" /> Recent Material Logs
+        </h3>
+        <ul className="divide-y divide-gray-200">
+          {summary.recentMaterialLogs.length > 0 ? (
+            summary.recentMaterialLogs.map(material => (
+              <li key={material._id} className="py-3 flex justify-between items-center">
+                <div>
+                  <p className="text-gray-900 font-medium">
+                    {material.material} - {material.quantity} {material.unit} @ ${material.pricePerUnit?.toFixed(2)}/unit
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    <span className="font-semibold">Site:</span> {material.siteId?.name || 'N/A'} |{' '}
+                    <span className="font-semibold">Total:</span> ${material.total?.toFixed(2)}
+                  </p>
+                </div>
+                <span className="text-xs text-gray-500">
+                  {new Date(material.date).toLocaleDateString()}
+                </span>
+              </li>
+            ))
+          ) : (
+            <li className="py-3 text-center text-gray-500">
+              No recent material logs found for your assigned sites.
+            </li>
+          )}
+        </ul>
+      </div>
+    </div>
+  );
+};
+
+export default SupervisorDashboard;
