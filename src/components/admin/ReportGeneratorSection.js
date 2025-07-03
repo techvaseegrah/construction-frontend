@@ -1,18 +1,13 @@
-// construction/frontend/src/pages/Supervisor/GenerateReports.js
+// construction/frontend/src/components/admin/ReportGeneratorSection.js
 import React, { useEffect, useState, useContext } from 'react';
 import API from '../../api/axios';
-import { toast, ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+import { toast } from 'react-toastify';
 import { FaFilePdf, FaFileExcel, FaFilter } from 'react-icons/fa';
 import { AuthContext } from '../../context/AuthContext';
-import { useParams } from 'react-router-dom'; // Import useParams
 
-const SupervisorGenerateReports = () => {
+const ReportGeneratorSection = ({ siteId }) => {
   const { user } = useContext(AuthContext);
-  const { siteId: urlSiteId } = useParams(); // Get siteId from URL
-  const [sites, setSites] = useState([]);
   const [filters, setFilters] = useState({
-    siteId: urlSiteId || '', // Initialize filters with URL siteId
     startDate: '',
     endDate: '',
     format: 'json', // Default to JSON
@@ -22,21 +17,16 @@ const SupervisorGenerateReports = () => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const fetchMySites = async () => {
-      try {
-        const res = await API.get('/supervisor/my-sites'); // Supervisor only sees their sites
-        setSites(res.data);
-        // If only one site is assigned and no siteId from URL, pre-select it
-        if (!urlSiteId && res.data.length === 1) {
-          setFilters(prev => ({ ...prev, siteId: res.data[0]._id }));
-        }
-      } catch (error) {
-        toast.error('Failed to load sites for report generation.');
-        console.error('Error fetching sites:', error);
-      }
-    };
-    fetchMySites();
-  }, []);
+    // Reset filters and report data when siteId changes
+    setFilters({
+      startDate: '',
+      endDate: '',
+      format: 'json',
+    });
+    setReportData(null);
+    setError(null);
+    setLoading(false);
+  }, [siteId]);
 
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
@@ -47,17 +37,8 @@ const SupervisorGenerateReports = () => {
     setLoading(true);
     setError(null);
     try {
-      // Ensure siteId is provided if supervisor only has one or selects one
-      // Now, it's either from URL or explicitly selected in filter.
-      // If it's empty and not from URL, that means "All My Sites" option is chosen.
-      if (user.role === 'supervisor' && !filters.siteId && !urlSiteId) {
-        toast.error('Please select a site to generate a report, or navigate from "My Sites" page.', { autoClose: 5000 });
-        setLoading(false);
-        return;
-      }
-
-      const params = new URLSearchParams({ ...filters, format, siteId: filters.siteId || urlSiteId || '' }).toString(); // Use filter's siteId, then URL siteId, then empty
-      const res = await API.get(`/reports/generate?${params}`, {
+      const params = new URLSearchParams({ ...filters, siteId, format }).toString();
+      const res = await API.get(`/reports/generate?${params}`, { // Backend handles admin permissions
         responseType: format === 'pdf' ? 'blob' : 'json', // Important for PDF download
       });
 
@@ -65,14 +46,16 @@ const SupervisorGenerateReports = () => {
         const url = window.URL.createObjectURL(new Blob([res.data]));
         const link = document.createElement('a');
         link.href = url;
-        link.setAttribute('download', `supervisor_report_${filters.siteId || urlSiteId || 'all_sites'}.pdf`);
+        link.setAttribute('download', `report_${siteId}_${new Date().toISOString().slice(0,10)}.pdf`);
         document.body.appendChild(link);
         link.click();
         link.remove();
         toast.success('PDF report generated and downloaded!');
       } else if (format === 'excel') {
+        // This toast indicates that Excel export is a backend feature,
+        // and frontend will display JSON preview if backend doesn't send Excel directly.
         toast.info('Excel export is not yet fully implemented on the backend. Displaying JSON data.', { autoClose: false });
-        setReportData(res.data.reportData || res.data); // Backend sends reportData inside a message object
+        setReportData(res.data.reportData || res.data);
       }
       else {
         setReportData(res.data);
@@ -89,34 +72,17 @@ const SupervisorGenerateReports = () => {
   };
 
   return (
-    <div className="p-6 bg-white rounded-lg shadow-md">
-      <h2 className="text-3xl font-bold text-gray-800 mb-6">Generate Reports</h2>
+    <div className="p-4 bg-white rounded-lg shadow-sm">
+      <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
+        <FaFilePdf className="mr-2 text-red-600" /> Generate Reports
+      </h3>
 
       <div className="mb-6 p-4 bg-gray-50 rounded-lg shadow-sm">
-        <h3 className="text-xl font-semibold text-gray-700 mb-4 flex items-center">
+        <h4 className="text-lg font-semibold text-gray-700 mb-3 flex items-center">
           <FaFilter className="mr-2 text-indigo-600" /> Filters & Options
-        </h3>
+        </h4>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Site</label>
-            <select
-              name="siteId"
-              value={filters.siteId}
-              onChange={handleFilterChange}
-              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
-              required={user.role === 'supervisor'} // Require site selection for supervisor
-              disabled={!!urlSiteId} // Disable if siteId is from URL
-            >
-              <option value="">Select My Site</option>
-              {sites.map((site) => (
-                <option key={site._id} value={site._id}>
-                  {site.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <div>
             <label className="block text-sm font-medium text-gray-700">Start Date</label>
             <input
@@ -143,21 +109,21 @@ const SupervisorGenerateReports = () => {
         <div className="flex justify-end space-x-3">
           <button
             onClick={() => generateReport('pdf')}
-            disabled={loading || (user.role === 'supervisor' && !(filters.siteId || urlSiteId))} // Disable if no site selected/from URL
+            disabled={loading}
             className="flex items-center px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
           >
             <FaFilePdf className="mr-2" /> {loading ? 'Generating...' : 'Generate PDF'}
           </button>
           <button
             onClick={() => generateReport('excel')}
-            disabled={loading || (user.role === 'supervisor' && !(filters.siteId || urlSiteId))} // Disable if no site selected/from URL
+            disabled={loading}
             className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
           >
             <FaFileExcel className="mr-2" /> {loading ? 'Generating...' : 'Generate Excel (JSON Preview)'}
           </button>
           <button
             onClick={() => generateReport('json')}
-            disabled={loading || (user.role === 'supervisor' && !(filters.siteId || urlSiteId))} // Disable if no site selected/from URL
+            disabled={loading}
             className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
           >
             Generate JSON Report
@@ -170,7 +136,7 @@ const SupervisorGenerateReports = () => {
 
       {reportData && (
         <div className="mt-8 bg-gray-50 p-6 rounded-lg shadow-md">
-          <h3 className="text-xl font-semibold text-gray-800 mb-4">Generated Report (JSON Preview)</h3>
+          <h4 className="text-lg font-semibold text-gray-800 mb-4">Generated Report (JSON Preview)</h4>
           <pre className="bg-gray-100 p-4 rounded-md overflow-x-auto text-sm">
             {JSON.stringify(reportData, null, 2)}
           </pre>
@@ -179,10 +145,8 @@ const SupervisorGenerateReports = () => {
           </p>
         </div>
       )}
-
-      <ToastContainer position="top-right" autoClose={3000} hideProgressBar />
     </div>
   );
 };
 
-export default SupervisorGenerateReports;
+export default ReportGeneratorSection;

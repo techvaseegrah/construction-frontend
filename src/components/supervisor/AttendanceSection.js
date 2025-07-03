@@ -1,86 +1,61 @@
-// construction/frontend/src/pages/Supervisor/MarkAttendance.js
+// construction/frontend/src/components/supervisor/AttendanceSection.js
 import React, { useEffect, useState, useContext } from 'react';
 import API from '../../api/axios';
-import { toast, ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
-import Table from '../../components/common/Table';
-import Modal from '../../components/common/Modal';
-import AttendanceForm from '../../components/supervisor/AttendanceForm';
-import { FaPlus, FaEdit, FaTrash, FaClipboardCheck, FaFilter } from 'react-icons/fa';
+import { toast } from 'react-toastify';
+import Table from '../common/Table';
+import Modal from '../common/Modal';
+import AttendanceForm from './AttendanceForm'; // Reusing existing form
+import { FaPlus, FaEdit, FaTrash, FaFilter,FaClipboardCheck } from 'react-icons/fa';
 import { AuthContext } from '../../context/AuthContext';
-import { useParams } from 'react-router-dom'; // Import useParams
 
-const MarkAttendance = () => {
+const AttendanceSection = ({ siteId }) => {
   const { user } = useContext(AuthContext);
-  const { siteId: urlSiteId } = useParams(); // Get siteId from URL
   const [attendanceEntries, setAttendanceEntries] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [sites, setSites] = useState([]);
-  const [workers, setWorkers] = useState([]);
-  const [filters, setFilters] = useState({ siteId: urlSiteId || '', workerId: '', startDate: '', endDate: '' }); // Initialize filters with URL siteId
+  const [workers, setWorkers] = useState([]); // Workers assigned to this specific site
+  const [filters, setFilters] = useState({ workerId: '', startDate: '', endDate: '' });
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState(null);
 
+  // Fetch attendance entries for the given siteId
   const fetchAttendanceEntries = async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams(filters).toString();
+      const params = new URLSearchParams({ ...filters, siteId }).toString();
       const res = await API.get(`/attendance?${params}`);
       setAttendanceEntries(res.data);
     } catch (error) {
-      toast.error('Failed to load attendance entries.');
+      toast.error('Failed to load attendance entries for this site.');
       console.error('Error fetching attendance entries:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchSitesAndWorkers = async () => {
+  // Fetch workers specifically for this site
+  const fetchSiteWorkers = async () => {
     try {
-      const sitesRes = await API.get('/supervisor/my-sites'); // Supervisor only sees their sites
-      setSites(sitesRes.data);
-
-      let allAssignedWorkers = [];
-      sitesRes.data.forEach(site => {
-        site.assignedWorkers.forEach(worker => {
-          if (!allAssignedWorkers.some(w => w._id === worker.workerId._id)) {
-            allAssignedWorkers.push({
-              _id: worker.workerId._id,
-              name: worker.workerId.name,
-              role: worker.workerId.role
-            });
-          }
-        });
-      });
-      setWorkers(allAssignedWorkers);
-
-      // If only one site is assigned and no siteId from URL, pre-select it
-      if (!urlSiteId && sitesRes.data.length === 1) {
-        setFilters(prev => ({ ...prev, siteId: sitesRes.data[0]._id }));
-      }
+      const res = await API.get(`/projects/${siteId}`); // Fetch the specific site to get its assigned workers
+      const assignedWorkersData = res.data.assignedWorkers.map(assignment => ({
+        _id: assignment.workerId._id,
+        name: assignment.workerId.name,
+        role: assignment.workerId.role
+      }));
+      setWorkers(assignedWorkersData);
     } catch (error) {
-      toast.error('Failed to load sites or workers for filter.');
-      console.error('Error fetching sites/workers:', error);
+      toast.error('Failed to load workers for this site.');
+      console.error('Error fetching site workers:', error);
     }
   };
 
 
   useEffect(() => {
-    fetchSitesAndWorkers();
-    // Delay initial fetch of attendance until filters are potentially pre-filled
-    const timer = setTimeout(() => {
+    if (siteId) {
+      fetchSiteWorkers();
       fetchAttendanceEntries();
-    }, 100);
-    return () => clearTimeout(timer);
-  }, []); // Empty dependency array ensures it runs only once on mount
-
-  useEffect(() => {
-    // Refetch attendance whenever filters change, but not on initial load
-    if (!loading) { // Prevent double fetch on initial load
-        fetchAttendanceEntries();
     }
-  }, [filters.siteId, filters.workerId, filters.startDate, filters.endDate]);
+  }, [siteId, filters.workerId, filters.startDate, filters.endDate]); // Re-fetch when siteId or filters change
 
 
   const handleFilterChange = (e) => {
@@ -91,7 +66,7 @@ const MarkAttendance = () => {
   const applyFilters = () => fetchAttendanceEntries();
 
   const resetFilters = () => {
-    setFilters({ siteId: urlSiteId || '', workerId: '', startDate: '', endDate: '' }); // Reset to URL siteId or empty
+    setFilters({ workerId: '', startDate: '', endDate: '' });
   };
 
   const handleAddEntry = () => {
@@ -122,40 +97,24 @@ const MarkAttendance = () => {
     setIsModalOpen(false);
   };
 
-  const tableHeaders = ['Worker', 'Site', 'Date', 'Shift Type', 'Multiplier', 'Actions'];
+  const tableHeaders = ['Worker', 'Date', 'Shift Type', 'Multiplier', 'Actions'];
 
   if (loading) {
     return <div className="p-4 text-center">Loading attendance records...</div>;
   }
 
   return (
-    <div className="p-6 bg-white rounded-lg shadow-md">
-      <h2 className="text-3xl font-bold text-gray-800 mb-6">Mark & Manage Attendance</h2>
+    <div className="p-4 bg-white rounded-lg shadow-sm">
+      <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
+        <FaClipboardCheck className="mr-2 text-indigo-600" /> Attendance Logs
+      </h3>
 
       <div className="mb-6 p-4 bg-gray-50 rounded-lg shadow-sm">
-        <h3 className="text-xl font-semibold text-gray-700 mb-4 flex items-center">
+        <h4 className="text-lg font-semibold text-gray-700 mb-3 flex items-center">
           <FaFilter className="mr-2 text-indigo-600" /> Filters
-        </h3>
+        </h4>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Site</label>
-            <select
-              name="siteId"
-              value={filters.siteId}
-              onChange={handleFilterChange}
-              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
-              disabled={!!urlSiteId} // Disable if siteId is from URL
-            >
-              <option value="">All My Sites</option>
-              {sites.map((site) => (
-                <option key={site._id} value={site._id}>
-                  {site.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700">Worker</label>
             <select
@@ -224,14 +183,11 @@ const MarkAttendance = () => {
       <Table
         headers={tableHeaders}
         data={attendanceEntries}
-        emptyMessage="No attendance records found for the selected criteria."
+        emptyMessage="No attendance records found for this site with the selected criteria."
         renderRow={(entry) => (
           <tr key={entry._id} className="hover:bg-gray-50">
             <td className="px-5 py-3 border-b border-gray-200 bg-white text-sm">
               {entry.workerId?.name || 'N/A'} ({entry.workerId?.role || 'N/A'})
-            </td>
-            <td className="px-5 py-3 border-b border-gray-200 bg-white text-sm">
-              {entry.siteId?.name || 'N/A'}
             </td>
             <td className="px-5 py-3 border-b border-gray-200 bg-white text-sm">
               {new Date(entry.date).toLocaleDateString()}
@@ -269,14 +225,12 @@ const MarkAttendance = () => {
         <AttendanceForm
           onSave={handleSaveEntry}
           onClose={() => setIsModalOpen(false)}
-          siteId={filters.siteId || urlSiteId} // Prefer filters.siteId if selected, else URL siteId
+          siteId={siteId} // Pass the siteId from props
           attendanceEntry={selectedEntry} // If editing, pass the selected entry
         />
       </Modal>
-
-      <ToastContainer position="top-right" autoClose={3000} hideProgressBar />
     </div>
   );
 };
 
-export default MarkAttendance;
+export default AttendanceSection;

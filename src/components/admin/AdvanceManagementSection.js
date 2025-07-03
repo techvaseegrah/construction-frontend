@@ -1,23 +1,19 @@
-// construction/frontend/src/pages/Supervisor/ManageAdvances.js
+// construction/frontend/src/components/admin/AdvanceManagementSection.js
 import React, { useEffect, useState, useContext } from 'react';
 import API from '../../api/axios';
-import { toast, ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
-import Table from '../../components/common/Table';
-import Modal from '../../components/common/Modal';
-import AdvanceForm from '../../components/supervisor/AdvanceForm';
+import { toast } from 'react-toastify';
+import Table from '../common/Table';
+import Modal from '../common/Modal';
+import AdvanceForm from '../supervisor/AdvanceForm'; // Reusing supervisor's form (it's generic)
 import { FaFilter, FaPlus, FaEdit, FaTrash, FaMoneyBillAlt } from 'react-icons/fa';
 import { AuthContext } from '../../context/AuthContext';
-import { useParams } from 'react-router-dom';
 
-const ManageAdvances = () => {
+const AdvanceManagementSection = ({ siteId }) => {
   const { user } = useContext(AuthContext);
-  const { siteId: urlSiteId } = useParams();
   const [advanceLogs, setAdvanceLogs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [sites, setSites] = useState([]);
-  const [workers, setWorkers] = useState([]);
-  const [filters, setFilters] = useState({ siteId: urlSiteId || '', workerId: '', startDate: '', endDate: '' });
+  const [workers, setWorkers] = useState([]); // Workers assigned to this specific site
+  const [filters, setFilters] = useState({ workerId: '', startDate: '', endDate: '' });
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedAdvance, setSelectedAdvance] = useState(null);
@@ -25,58 +21,38 @@ const ManageAdvances = () => {
   const fetchAdvanceLogs = async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams(filters).toString();
-      const res = await API.get(`/advances?${params}`);
+      const params = new URLSearchParams({ ...filters, siteId }).toString();
+      const res = await API.get(`/advances?${params}`); // Backend handles admin permissions
       setAdvanceLogs(res.data);
     } catch (error) {
-      toast.error('Failed to load advance logs.');
+      toast.error('Failed to load advance logs for this project.');
       console.error('Error fetching advance logs:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchMySitesAndWorkers = async () => {
+  const fetchSiteWorkers = async () => {
     try {
-      const sitesRes = await API.get('/supervisor/my-sites');
-      setSites(sitesRes.data);
-
-      let allAssignedWorkers = [];
-      sitesRes.data.forEach(site => {
-        site.assignedWorkers.forEach(worker => {
-          if (!allAssignedWorkers.some(w => w._id === worker.workerId._id)) {
-            allAssignedWorkers.push({
-              _id: worker.workerId._id,
-              name: worker.workerId.name,
-              role: worker.workerId.role
-            });
-          }
-        });
-      });
-      setWorkers(allAssignedWorkers);
-
-      if (!urlSiteId && sitesRes.data.length === 1) {
-        setFilters(prev => ({ ...prev, siteId: sitesRes.data[0]._id }));
-      }
+      const res = await API.get(`/projects/${siteId}`); // Fetch the specific site to get its assigned workers
+      const assignedWorkersData = res.data.assignedWorkers.map(assignment => ({
+        _id: assignment.workerId._id,
+        name: assignment.workerId.name,
+        role: assignment.workerId.role
+      }));
+      setWorkers(assignedWorkersData);
     } catch (error) {
-      toast.error('Failed to load sites or workers for filter.');
-      console.error('Error fetching sites/workers:', error);
+      toast.error('Failed to load workers for this project.');
+      console.error('Error fetching site workers:', error);
     }
   };
 
   useEffect(() => {
-    fetchMySitesAndWorkers();
-    const timer = setTimeout(() => {
-        fetchAdvanceLogs();
-    }, 100);
-    return () => clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    if (!loading) {
-        fetchAdvanceLogs();
+    if (siteId) {
+      fetchSiteWorkers();
+      fetchAdvanceLogs();
     }
-  }, [filters.siteId, filters.workerId, filters.startDate, filters.endDate]);
+  }, [siteId, filters.workerId, filters.startDate, filters.endDate]);
 
 
   const handleFilterChange = (e) => {
@@ -87,7 +63,7 @@ const ManageAdvances = () => {
   const applyFilters = () => fetchAdvanceLogs();
 
   const resetFilters = () => {
-    setFilters({ siteId: urlSiteId || '', workerId: '', startDate: '', endDate: '' });
+    setFilters({ workerId: '', startDate: '', endDate: '' });
   };
 
   const handleAddAdvance = () => {
@@ -118,36 +94,23 @@ const ManageAdvances = () => {
     setIsModalOpen(false);
   };
 
-  const tableHeaders = ['Worker Name', 'Site', 'Amount', 'Date', 'Reason', 'Recorded By', 'Actions'];
+  const tableHeaders = ['Worker Name', 'Amount', 'Date', 'Reason', 'Recorded By', 'Actions'];
 
   if (loading) {
     return <div className="p-4 text-center">Loading advance logs...</div>;
   }
 
   return (
-    <div className="p-6 bg-white rounded-lg shadow-md">
-      <h2 className="text-3xl font-bold text-gray-800 mb-6">Manage Advance Payments</h2>
+    <div className="p-4 bg-white rounded-lg shadow-sm">
+      <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
+        <FaMoneyBillAlt className="mr-2 text-yellow-600" /> Advance Payments
+      </h3>
 
       <div className="mb-6 p-4 bg-gray-50 rounded-lg shadow-sm">
-        <h3 className="text-xl font-semibold text-gray-700 mb-4 flex items-center">
+        <h4 className="text-lg font-semibold text-gray-700 mb-3 flex items-center">
           <FaFilter className="mr-2 text-indigo-600" /> Filters
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Site</label>
-            <select
-              name="siteId"
-              value={filters.siteId}
-              onChange={handleFilterChange}
-              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
-              disabled={!!urlSiteId}
-            >
-              <option value="">All My Sites</option>
-              {sites.map(site => (
-                <option key={site._id} value={site._id}>{site.name}</option>
-              ))}
-            </select>
-          </div>
+        </h4>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700">Worker</label>
             <select
@@ -202,12 +165,11 @@ const ManageAdvances = () => {
       <Table
         headers={tableHeaders}
         data={advanceLogs}
-        emptyMessage="No advance payment logs found."
+        emptyMessage="No advance payment logs found for this project with the selected criteria."
         renderRow={log => (
           <tr key={log._id} className="hover:bg-gray-50">
             <td className="px-5 py-3 border-b border-gray-200 bg-white text-sm">{log.workerId?.name || 'N/A'}</td>
-            <td className="px-5 py-3 border-b border-gray-200 bg-white text-sm">{log.siteId?.name || 'N/A'}</td>
-            <td className="px-5 py-3 border-b border-gray-200 bg-white text-sm">₹{log.amount.toFixed(2)}</td>
+            <td className="px-5 py-3 border-b border-gray-200 bg-white text-sm">${log.amount.toFixed(2)}</td>
             <td className="px-5 py-3 border-b border-gray-200 bg-white text-sm">{new Date(log.date).toLocaleDateString()}</td>
             <td className="px-5 py-3 border-b border-gray-200 bg-white text-sm">{log.reason}</td>
             <td className="px-5 py-3 border-b border-gray-200 bg-white text-sm">{log.recordedBy?.name || 'N/A'}</td>
@@ -233,13 +195,11 @@ const ManageAdvances = () => {
           advanceEntry={selectedAdvance}
           onSave={handleSaveAdvance}
           onClose={() => setIsModalOpen(false)}
-          siteId={filters.siteId}
+          siteId={siteId} // Pass the siteId from props
         />
       </Modal>
-
-      <ToastContainer position="top-right" autoClose={3000} hideProgressBar />
     </div>
   );
 };
 
-export default ManageAdvances;
+export default AdvanceManagementSection;

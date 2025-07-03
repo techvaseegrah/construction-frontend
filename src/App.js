@@ -1,7 +1,7 @@
-// contract/frontend/src/App.js
+// construction/frontend/src/App.js
 import React, { useContext } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
-import { AuthContext } from './context/AuthContext'; // Import AuthContext
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { AuthContext } from './context/AuthContext';
 import LoginPage from './pages/Auth/LoginPage';
 import AdminDashboard from './pages/Admin/AdminDashboard';
 import ManageProjects from './pages/Admin/ManageProjects';
@@ -13,35 +13,33 @@ import RawMaterialLogs from './pages/Admin/RawMaterialLogs';
 import DailyActivityLogs from './pages/Admin/DailyActivityLogs';
 import ReportGenerator from './pages/Admin/ReportGenerator';
 import AdminSettings from './pages/Admin/AdminSettings';
+import ProjectDetailsPage from './pages/Admin/ProjectDetailsPage'; // New: Import Admin ProjectDetailsPage
 
 import SupervisorDashboard from './pages/Supervisor/SupervisorDashboard';
 import MySites from './pages/Supervisor/MySites';
+import SiteDetailsPage from './pages/Supervisor/SiteDetailsPage';
 import MarkAttendance from './pages/Supervisor/MarkAttendance';
-import LogRawMaterials from './pages/Supervisor/LogRawMaterials';
+import LogRawMaterials from './pages/Supervisor/LogRawMaterials'; // Corrected path
 import LogDailyActivities from './pages/Supervisor/LogDailyActivities';
 import ManageAdvances from './pages/Supervisor/ManageAdvances';
-import SupervisorGenerateReports from './pages/Supervisor/GenerateReports'; // Renamed to avoid conflict
+import SupervisorGenerateReports from './pages/Supervisor/GenerateReports';
 
 import Navbar from './components/common/Navbar';
 import Sidebar from './components/common/Sidebar';
 
-// ProtectedRoute component to handle authentication and role-based access
+// ProtectedRoute component remains unchanged
 const ProtectedRoute = ({ children, allowedRoles }) => {
-  const { user, loading } = useContext(AuthContext); // Get user and loading from AuthContext
+  const { user, loading } = useContext(AuthContext);
 
   if (loading) {
-    // Optionally render a loading spinner or skeleton screen
     return <div className="flex justify-center items-center h-screen text-xl">Loading application...</div>;
   }
 
   if (!user) {
-    // If no user is logged in, redirect to login page
     return <Navigate to="/login" replace />;
   }
 
-  // If user is logged in but role is not allowed, redirect to a forbidden page or dashboard
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    // You might want a specific Forbidden page or redirect to their allowed dashboard
     return <Navigate to={user.role === 'admin' ? '/admin/dashboard' : '/supervisor/dashboard'} replace />;
   }
 
@@ -49,13 +47,17 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 };
 
 function App() {
-  const { user } = useContext(AuthContext); // Get user from AuthContext
+  const { user } = useContext(AuthContext);
+  const location = useLocation();
+  const showLayout =
+   location.pathname.startsWith('/admin') ||
+   location.pathname.startsWith('/supervisor');
 
   return (
     <div className="flex h-screen bg-gray-100 font-inter">
-      {user && <Sidebar role={user.role} />} {/* Show sidebar only if user is logged in */}
+      {showLayout && user && <Sidebar role={user.role} />}
       <div className="flex flex-col flex-1">
-        {user && <Navbar user={user} />} {/* Show navbar only if user is logged in */}
+       {showLayout && user && <Navbar user={user} />}
         <main className="flex-1 overflow-y-auto p-4">
           <Routes>
             <Route path="/login" element={<LoginPage />} />
@@ -77,11 +79,11 @@ function App() {
   );
 }
 
-// Separate components for Admin and Supervisor routes for better organization
 const AdminRoutes = () => (
   <Routes>
     <Route path="dashboard" element={<AdminDashboard />} />
     <Route path="projects" element={<ManageProjects />} />
+    <Route path="projects/:projectId" element={<ProjectDetailsPage />} /> {/* New: Route for Project Details Page */}
     <Route path="workers" element={<ManageWorkers />} />
     <Route path="roles-salaries" element={<ManageRolesSalaries />} />
     <Route path="attendance-overview" element={<AttendanceOverview />} />
@@ -90,7 +92,7 @@ const AdminRoutes = () => (
     <Route path="daily-activity-logs" element={<DailyActivityLogs />} />
     <Route path="report-generator" element={<ReportGenerator />} />
     <Route path="settings" element={<AdminSettings />} />
-    <Route path="*" element={<Navigate to="dashboard" replace />} /> {/* Default admin dashboard */}
+    <Route path="*" element={<Navigate to="dashboard" replace />} />
   </Routes>
 );
 
@@ -98,14 +100,14 @@ const SupervisorRoutes = () => (
   <Routes>
     <Route path="dashboard" element={<SupervisorDashboard />} />
     <Route path="my-sites" element={<MySites />} />
+    <Route path="sites/:siteId" element={<SiteDetailsPage />} />
     <Route path="mark-attendance" element={<MarkAttendance />} />
     <Route path="log-raw-materials" element={<LogRawMaterials />} />
     <Route path="log-daily-activities" element={<LogDailyActivities />} />
     <Route path="manage-advances" element={<ManageAdvances />} />
     <Route path="generate-reports" element={<SupervisorGenerateReports />} />
-    <Route path="*" element={<Navigate to="dashboard" replace />} /> {/* Default supervisor dashboard */}
+    <Route path="*" element={<Navigate to="dashboard" replace />} />
   </Routes>
 );
-
 
 export default App;

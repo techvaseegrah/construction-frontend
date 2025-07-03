@@ -1,15 +1,20 @@
-// contract/frontend/src/pages/Supervisor/MySites.js
+// construction/frontend/src/pages/Supervisor/MySites.js
 import React, { useEffect, useState } from 'react';
 import API from '../../api/axios';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import Table from '../../components/common/Table';
-import { FaBuilding, FaHardHat } from 'react-icons/fa';
+import { FaBuilding, FaHardHat, FaMapMarkerAlt, FaCalendarAlt, FaArrowRight } from 'react-icons/fa';
+import { useNavigate } from 'react-router-dom'; // Import useNavigate
+
+// No longer importing SiteOperationsDisplay here
 
 const MySites = () => {
   const [sites, setSites] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // Removed selectedSite and showOperations states
+
+  const navigate = useNavigate(); // Initialize useNavigate
 
   useEffect(() => {
     const fetchMySites = async () => {
@@ -27,9 +32,10 @@ const MySites = () => {
     fetchMySites();
   }, []);
 
-  const siteTableHeaders = ['Project Name', 'Type', 'Location', 'Start Date', 'Assigned Workers'];
-  const workerTableHeaders = ['Worker Name', 'Role', 'RFID ID', 'Project Salary (Override)'];
-
+  // Handler for clicking a site card - now navigates to SiteDetailsPage
+  const handleSiteClick = (siteId) => {
+    navigate(`/supervisor/sites/${siteId}`); // Navigate to the new SiteDetailsPage route
+  };
 
   if (loading) {
     return <div className="p-4 text-center">Loading your assigned sites...</div>;
@@ -47,48 +53,36 @@ const MySites = () => {
     <div className="p-6 bg-white rounded-lg shadow-md">
       <h2 className="text-3xl font-bold text-gray-800 mb-6">My Assigned Projects</h2>
 
-      {sites.map(site => (
-        <div key={site._id} className="mb-8 p-4 bg-gray-50 rounded-lg shadow-sm">
-          <div className="flex items-center mb-4">
-            <FaBuilding className="mr-3 text-indigo-600" size={24} />
-            <h3 className="text-xl font-semibold text-gray-800">
-              {site.name} ({site.location})
-            </h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {sites.map(site => (
+          <div
+            key={site._id}
+            className="bg-gray-50 rounded-lg shadow-md p-6 border border-gray-200 hover:shadow-lg hover:border-indigo-400 transition-all duration-200 cursor-pointer flex flex-col justify-between"
+            onClick={() => handleSiteClick(site._id)} // Pass site._id for navigation
+          >
+            <div>
+              <div className="flex items-center mb-4">
+                <FaBuilding className="mr-3 text-indigo-600" size={28} />
+                <h3 className="text-xl font-semibold text-gray-800 truncate">
+                  {site.name}
+                </h3>
+              </div>
+              <div className="space-y-2 text-gray-700 text-sm mb-4">
+                <p className="flex items-center"><FaMapMarkerAlt className="mr-2 text-gray-500" /> {site.location}</p>
+                <p className="flex items-center"><FaCalendarAlt className="mr-2 text-gray-500" /> Start Date: {new Date(site.startDate).toLocaleDateString()}</p>
+                <p className="flex items-center"><FaHardHat className="mr-2 text-gray-500" /> Workers Assigned: {site.assignedWorkers.length}</p>
+              </div>
+            </div>
+            <div className="mt-4 pt-4 border-t border-gray-200 flex justify-end">
+              <span className="flex items-center text-indigo-600 font-medium group">
+                View Site Details <FaArrowRight className="ml-2 group-hover:translate-x-1 transition-transform" />
+              </span>
+            </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <p className="text-gray-700"><span className="font-medium">Type:</span> {site.type}</p>
-            <p className="text-gray-700"><span className="font-medium">Start Date:</span> {new Date(site.startDate).toLocaleDateString()}</p>
-          </div>
+        ))}
+      </div>
 
-          <h4 className="text-lg font-semibold text-gray-800 mb-3 flex items-center">
-            <FaHardHat className="mr-2 text-green-600" /> Workers Assigned to this Project ({site.assignedWorkers.length})
-          </h4>
-          {site.assignedWorkers.length > 0 ? (
-            <Table
-              headers={workerTableHeaders}
-              data={site.assignedWorkers}
-              renderRow={(workerAssignment) => (
-                <tr key={workerAssignment.workerId._id} className="hover:bg-gray-50">
-                  <td className="px-5 py-3 border-b border-gray-200 bg-white text-sm">
-                    {workerAssignment.workerId?.name || 'N/A'}
-                  </td>
-                  <td className="px-5 py-3 border-b border-gray-200 bg-white text-sm">
-                    {workerAssignment.workerId?.role || 'N/A'}
-                  </td>
-                  <td className="px-5 py-3 border-b border-gray-200 bg-white text-sm">
-                    {workerAssignment.workerId?.rfidId || 'N/A'}
-                  </td>
-                  <td className="px-5 py-3 border-b border-gray-200 bg-white text-sm">
-                    {workerAssignment.salaryOverride ? `$${workerAssignment.salaryOverride.toFixed(2)}` : 'Uses Base Salary'}
-                  </td>
-                </tr>
-              )}
-            />
-          ) : (
-            <p className="text-center text-gray-600">No workers assigned to this project yet.</p>
-          )}
-        </div>
-      ))}
+      {/* Removed conditional rendering of SiteOperationsDisplay */}
 
       <ToastContainer position="top-right" autoClose={3000} hideProgressBar />
     </div>

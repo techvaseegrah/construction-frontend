@@ -1,22 +1,18 @@
-// construction/frontend/src/pages/Supervisor/LogRawMaterials.js
+// construction/frontend/src/components/admin/MaterialLogSection.js
 import React, { useEffect, useState, useContext } from 'react';
 import API from '../../api/axios';
-import { toast, ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
-import Table from '../../components/common/Table';
-import Modal from '../../components/common/Modal';
-import MaterialLogForm from '../../components/supervisor/MaterialLogForm';
+import { toast } from 'react-toastify';
+import Table from '../common/Table';
+import Modal from '../common/Modal';
+import MaterialLogForm from '../supervisor/MaterialLogForm'; // Reusing supervisor's form (it's generic)
 import { FaFilter, FaPlus, FaEdit, FaTrash, FaBoxOpen } from 'react-icons/fa';
 import { AuthContext } from '../../context/AuthContext';
-import { useParams } from 'react-router-dom';
 
-const LogRawMaterials = () => {
+const MaterialLogSection = ({ siteId }) => {
   const { user } = useContext(AuthContext);
-  const { siteId: urlSiteId } = useParams();
   const [materialLogs, setMaterialLogs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [sites, setSites] = useState([]);
-  const [filters, setFilters] = useState({ siteId: urlSiteId || '', material: '', startDate: '', endDate: '' });
+  const [filters, setFilters] = useState({ material: '', startDate: '', endDate: '' });
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedMaterialLog, setSelectedMaterialLog] = useState(null);
@@ -24,43 +20,22 @@ const LogRawMaterials = () => {
   const fetchMaterialLogs = async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams(filters).toString();
-      const res = await API.get(`/materials?${params}`);
+      const params = new URLSearchParams({ ...filters, siteId }).toString();
+      const res = await API.get(`/materials?${params}`); // Backend handles admin permissions
       setMaterialLogs(res.data);
     } catch (error) {
-      toast.error('Failed to load material logs.');
+      toast.error('Failed to load material logs for this project.');
       console.error('Error fetching material logs:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchMySites = async () => {
-    try {
-      const res = await API.get('/supervisor/my-sites');
-      setSites(res.data);
-      if (!urlSiteId && res.data.length === 1) {
-        setFilters(prev => ({ ...prev, siteId: res.data[0]._id }));
-      }
-    } catch (error) {
-      toast.error('Failed to load sites for filter.');
-      console.error('Error fetching sites:', error);
-    }
-  };
-
   useEffect(() => {
-    fetchMySites();
-    const timer = setTimeout(() => {
-        fetchMaterialLogs();
-    }, 100);
-    return () => clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    if (!loading) {
-        fetchMaterialLogs();
+    if (siteId) {
+      fetchMaterialLogs();
     }
-  }, [filters.siteId, filters.material, filters.startDate, filters.endDate]);
+  }, [siteId, filters.material, filters.startDate, filters.endDate]);
 
 
   const handleFilterChange = (e) => {
@@ -71,7 +46,7 @@ const LogRawMaterials = () => {
   const applyFilters = () => fetchMaterialLogs();
 
   const resetFilters = () => {
-    setFilters({ siteId: urlSiteId || '', material: '', startDate: '', endDate: '' });
+    setFilters({ material: '', startDate: '', endDate: '' });
   };
 
   const handleAddLog = () => {
@@ -102,40 +77,24 @@ const LogRawMaterials = () => {
     setIsModalOpen(false);
   };
 
-  const tableHeaders = ['Site', 'Material', 'Brand', 'Quantity', 'Unit', 'Price/Unit', 'Total Cost', 'Date', 'Recorded By', 'Actions'];
+  const tableHeaders = ['Material', 'Brand', 'Quantity', 'Unit', 'Price/Unit', 'Total Cost', 'Date', 'Recorded By', 'Actions'];
 
   if (loading) {
     return <div className="p-4 text-center">Loading raw material logs...</div>;
   }
 
   return (
-    <div className="p-6 bg-white rounded-lg shadow-md">
-      <h2 className="text-3xl font-bold text-gray-800 mb-6">Log & View Raw Materials</h2>
+    <div className="p-4 bg-white rounded-lg shadow-sm">
+      <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
+        <FaBoxOpen className="mr-2 text-green-600" /> Raw Materials Logs
+      </h3>
 
       <div className="mb-6 p-4 bg-gray-50 rounded-lg shadow-sm">
-        <h3 className="text-xl font-semibold text-gray-700 mb-4 flex items-center">
+        <h4 className="text-lg font-semibold text-gray-700 mb-3 flex items-center">
           <FaFilter className="mr-2 text-indigo-600" /> Filters
-        </h3>
+        </h4>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Site</label>
-            <select
-              name="siteId"
-              value={filters.siteId}
-              onChange={handleFilterChange}
-              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
-              disabled={!!urlSiteId}
-            >
-              <option value="">All My Sites</option>
-              {sites.map((site) => (
-                <option key={site._id} value={site._id}>
-                  {site.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700">Material Name</label>
             <input
@@ -199,12 +158,9 @@ const LogRawMaterials = () => {
       <Table
         headers={tableHeaders}
         data={materialLogs}
-        emptyMessage="No material logs found for the selected criteria."
+        emptyMessage="No material logs found for this project with the selected criteria."
         renderRow={(log) => (
           <tr key={log._id} className="hover:bg-gray-50">
-            <td className="px-5 py-3 border-b border-gray-200 bg-white text-sm">
-              {log.siteId?.name || 'N/A'}
-            </td>
             <td className="px-5 py-3 border-b border-gray-200 bg-white text-sm">
               {log.material}
             </td>
@@ -218,10 +174,10 @@ const LogRawMaterials = () => {
               {log.unit}
             </td>
             <td className="px-5 py-3 border-b border-gray-200 bg-white text-sm">
-              ₹{log.pricePerUnit.toFixed(2)}
+              ${log.pricePerUnit.toFixed(2)}
             </td>
             <td className="px-5 py-3 border-b border-gray-200 bg-white text-sm">
-              ₹{log.total.toFixed(2)}
+              ${log.total.toFixed(2)}
             </td>
             <td className="px-5 py-3 border-b border-gray-200 bg-white text-sm">
               {new Date(log.date).toLocaleDateString()}
@@ -257,13 +213,11 @@ const LogRawMaterials = () => {
           materialEntry={selectedMaterialLog}
           onSave={handleSaveLog}
           onClose={() => setIsModalOpen(false)}
-          siteId={filters.siteId}
+          siteId={siteId} // Pass the siteId from props
         />
       </Modal>
-
-      <ToastContainer position="top-right" autoClose={3000} hideProgressBar />
     </div>
   );
 };
 
-export default LogRawMaterials;
+export default MaterialLogSection;

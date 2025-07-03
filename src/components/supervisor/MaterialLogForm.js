@@ -1,3 +1,4 @@
+// construction/frontend/src/components/supervisor/MaterialLogForm.js
 import React, { useState, useEffect } from 'react';
 import API from '../../api/axios';
 import { toast } from 'react-toastify';
@@ -68,7 +69,7 @@ const MaterialLogForm = ({ materialEntry, onSave, onClose, siteId: initialSiteId
         await API.put(`/materials/${materialEntry._id}`, payload);
         toast.success('Material entry updated successfully!');
       } else {
-        await API.post('/materials/log', payload);
+        await API.post('/materials', payload);
         toast.success('Material entry logged successfully!');
       }
 

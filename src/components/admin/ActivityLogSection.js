@@ -1,22 +1,18 @@
-// construction/frontend/src/pages/Supervisor/LogDailyActivities.js
+// construction/frontend/src/components/admin/ActivityLogSection.js
 import React, { useEffect, useState, useContext } from 'react';
 import API from '../../api/axios';
-import { toast, ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
-import Table from '../../components/common/Table';
-import Modal from '../../components/common/Modal';
-import ActivityLogForm from '../../components/supervisor/ActivityLogForm';
+import { toast } from 'react-toastify';
+import Table from '../common/Table';
+import Modal from '../common/Modal';
+import ActivityLogForm from '../supervisor/ActivityLogForm'; // Reusing supervisor's form (it's generic)
 import { FaFilter, FaPlus, FaEdit, FaTrash, FaClipboardList } from 'react-icons/fa';
 import { AuthContext } from '../../context/AuthContext';
-import { useParams } from 'react-router-dom'; // Import useParams
 
-const LogDailyActivities = () => {
+const ActivityLogSection = ({ siteId }) => {
   const { user } = useContext(AuthContext);
-  const { siteId: urlSiteId } = useParams(); // Get siteId from URL
   const [activityLogs, setActivityLogs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [sites, setSites] = useState([]);
-  const [filters, setFilters] = useState({ siteId: urlSiteId || '', startDate: '', endDate: '' }); // Initialize filters with URL siteId
+  const [filters, setFilters] = useState({ startDate: '', endDate: '' });
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedActivityLog, setSelectedActivityLog] = useState(null);
@@ -24,46 +20,22 @@ const LogDailyActivities = () => {
   const fetchActivityLogs = async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams(filters).toString();
-      const res = await API.get(`/activities?${params}`);
+      const params = new URLSearchParams({ ...filters, siteId }).toString();
+      const res = await API.get(`/activities?${params}`); // Backend handles admin permissions
       setActivityLogs(res.data);
     } catch (error) {
-      toast.error('Failed to load activity logs.');
+      toast.error('Failed to load activity logs for this project.');
       console.error('Error fetching activity logs:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchMySites = async () => {
-    try {
-      const res = await API.get('/supervisor/my-sites'); // Supervisor only sees their sites
-      setSites(res.data);
-      // If only one site is assigned and no siteId from URL, pre-select it
-      if (!urlSiteId && res.data.length === 1) {
-        setFilters(prev => ({ ...prev, siteId: res.data[0]._id }));
-      }
-    } catch (error) {
-      toast.error('Failed to load sites for filter.');
-      console.error('Error fetching sites:', error);
-    }
-  };
-
   useEffect(() => {
-    fetchMySites();
-    // Delay initial fetch of activity logs until filters are potentially pre-filled
-    const timer = setTimeout(() => {
-        fetchActivityLogs();
-    }, 100);
-    return () => clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    // Refetch activity logs whenever filters change, but not on initial load
-    if (!loading) { // Prevent double fetch on initial load
-        fetchActivityLogs();
+    if (siteId) {
+      fetchActivityLogs();
     }
-  }, [filters.siteId, filters.startDate, filters.endDate]);
+  }, [siteId, filters.startDate, filters.endDate]);
 
 
   const handleFilterChange = (e) => {
@@ -74,7 +46,7 @@ const LogDailyActivities = () => {
   const applyFilters = () => fetchActivityLogs();
 
   const resetFilters = () => {
-    setFilters({ siteId: urlSiteId || '', startDate: '', endDate: '' }); // Reset to URL siteId or empty
+    setFilters({ startDate: '', endDate: '' });
   };
 
   const handleAddLog = () => {
@@ -105,40 +77,24 @@ const LogDailyActivities = () => {
     setIsModalOpen(false);
   };
 
-  const tableHeaders = ['Site', 'Date', 'Message', 'Supervisor', 'Actions'];
+  const tableHeaders = ['Date', 'Message', 'Supervisor', 'Actions'];
 
   if (loading) {
     return <div className="p-4 text-center">Loading daily activity logs...</div>;
   }
 
   return (
-    <div className="p-6 bg-white rounded-lg shadow-md">
-      <h2 className="text-3xl font-bold text-gray-800 mb-6">Log & View Daily Activities</h2>
+    <div className="p-4 bg-white rounded-lg shadow-sm">
+      <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
+        <FaClipboardList className="mr-2 text-purple-600" /> Daily Activities Logs
+      </h3>
 
       <div className="mb-6 p-4 bg-gray-50 rounded-lg shadow-sm">
-        <h3 className="text-xl font-semibold text-gray-700 mb-4 flex items-center">
+        <h4 className="text-lg font-semibold text-gray-700 mb-3 flex items-center">
           <FaFilter className="mr-2 text-indigo-600" /> Filters
-        </h3>
+        </h4>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Site</label>
-            <select
-              name="siteId"
-              value={filters.siteId}
-              onChange={handleFilterChange}
-              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
-              disabled={!!urlSiteId} // Disable if siteId is from URL
-            >
-              <option value="">All My Sites</option>
-              {sites.map((site) => (
-                <option key={site._id} value={site._id}>
-                  {site.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700">Start Date</label>
             <input
@@ -190,12 +146,9 @@ const LogDailyActivities = () => {
       <Table
         headers={tableHeaders}
         data={activityLogs}
-        emptyMessage="No activity logs found for the selected criteria."
+        emptyMessage="No activity logs found for this project with the selected criteria."
         renderRow={(log) => (
           <tr key={log._id} className="hover:bg-gray-50">
-            <td className="px-5 py-3 border-b border-gray-200 bg-white text-sm">
-              {log.siteId?.name || 'N/A'}
-            </td>
             <td className="px-5 py-3 border-b border-gray-200 bg-white text-sm">
               {new Date(log.date).toLocaleDateString()}
             </td>
@@ -233,13 +186,11 @@ const LogDailyActivities = () => {
           activityLog={selectedActivityLog}
           onSave={handleSaveLog}
           onClose={() => setIsModalOpen(false)}
-          siteId={filters.siteId || urlSiteId} // Prefer filters.siteId if selected, else URL siteId
+          siteId={siteId} // Pass the siteId from props
         />
       </Modal>
-
-      <ToastContainer position="top-right" autoClose={3000} hideProgressBar />
     </div>
   );
 };
 
-export default LogDailyActivities;
+export default ActivityLogSection;

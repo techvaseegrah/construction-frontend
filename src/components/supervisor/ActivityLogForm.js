@@ -1,4 +1,4 @@
-// contract/frontend/src/components/supervisor/ActivityLogForm.js
+// construction/frontend/src/components/supervisor/ActivityLogForm.js
 import React, { useState, useEffect } from 'react';
 import API from '../../api/axios';
 import { toast } from 'react-toastify';
@@ -54,7 +54,8 @@ const ActivityLogForm = ({ activityLog, onSave, onClose, siteId: initialSiteId }
         await API.put(`/activities/${activityLog._id}`, formData);
         toast.success('Activity log updated successfully!');
       } else {
-        await API.post('/activities/log', formData);
+        // CORRECTED ENDPOINT: Change '/activities/log' to '/activities'
+        await API.post('/activities', formData);
         toast.success('Activity logged successfully!');
       }
 
