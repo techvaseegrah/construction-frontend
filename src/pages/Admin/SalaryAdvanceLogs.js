@@ -5,8 +5,8 @@ import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Table from '../../components/common/Table';
 import Modal from '../../components/common/Modal';
-import AdvanceForm from '../../components/supervisor/AdvanceForm'; // Reusing form
-import { FaFilter, FaPlus, FaEdit, FaTrash, FaMoneyBillAlt, FaCalculator, FaCheckCircle, FaTimesCircle } from 'react-icons/fa';
+import AdvanceForm from '../../components/supervisor/AdvanceForm';
+import { FaFilter, FaPlus, FaEdit, FaTrash, FaMoneyBillAlt, FaCalculator, FaCheckCircle, FaTimesCircle, FaCheckDouble, FaBan } from 'react-icons/fa';
 
 const SalaryAdvanceLogs = () => {
   const [salaryLogs, setSalaryLogs] = useState([]);
@@ -18,6 +18,12 @@ const SalaryAdvanceLogs = () => {
 
   const [isAdvanceModalOpen, setIsAdvanceModalOpen] = useState(false);
   const [selectedAdvance, setSelectedAdvance] = useState(null);
+
+  // NEW: State for selected salary log IDs
+  const [selectedSalaryLogIds, setSelectedSalaryLogIds] = useState(new Set());
+  // NEW: State for "select all" checkbox
+  const [isSelectAllChecked, setIsSelectAllChecked] = useState(false);
+
 
   const fetchLogs = async () => {
     setLoading(true);
@@ -32,6 +38,8 @@ const SalaryAdvanceLogs = () => {
       }).toString();
       const salaryRes = await API.get(`/reports/salary-logs?${salaryParams}`);
       setSalaryLogs(salaryRes.data);
+      setSelectedSalaryLogIds(new Set()); // Clear selections on new fetch
+      setIsSelectAllChecked(false); // Uncheck select all on new fetch
 
       // Fetch Advance Logs
       const advanceParams = new URLSearchParams({
@@ -53,10 +61,10 @@ const SalaryAdvanceLogs = () => {
 
   const fetchSitesAndWorkers = async () => {
     try {
-      const sitesRes = await API.get('/projects'); // Admin can see all sites
+      const sitesRes = await API.get('/projects');
       setSites(sitesRes.data);
 
-      const workersRes = await API.get('/workers'); // Admin can see all workers
+      const workersRes = await API.get('/workers');
       setWorkers(workersRes.data);
     } catch (error) {
       toast.error('Failed to load sites or workers for filter.');
@@ -66,12 +74,21 @@ const SalaryAdvanceLogs = () => {
 
   useEffect(() => {
     fetchSitesAndWorkers();
-    fetchLogs(); // Initial fetch
+    fetchLogs();
   }, []);
 
   useEffect(() => {
-    fetchLogs(); // Refetch when filters change
+    fetchLogs();
   }, [filters]);
+
+  // NEW: Effect to update select all checkbox state
+  useEffect(() => {
+    if (salaryLogs.length > 0 && selectedSalaryLogIds.size === salaryLogs.length) {
+      setIsSelectAllChecked(true);
+    } else {
+      setIsSelectAllChecked(false);
+    }
+  }, [selectedSalaryLogIds, salaryLogs.length]);
 
 
   const handleFilterChange = (e) => {
@@ -94,11 +111,11 @@ const SalaryAdvanceLogs = () => {
       const payload = {
         startDate: filters.startDate,
         endDate: filters.endDate,
-        siteId: filters.siteId || undefined, // Pass siteId if selected
+        siteId: filters.siteId || undefined,
       };
       const res = await API.post('/reports/calculate-weekly-salaries', payload);
       toast.success(res.data.message || 'Salaries calculated successfully!');
-      fetchLogs(); // Refresh logs after calculation
+      fetchLogs();
     } catch (error) {
       toast.error(`Failed to calculate salaries: ${error.response?.data?.message || error.message}`);
       console.error('Error calculating salaries:', error.response?.data || error.message);
@@ -115,13 +132,80 @@ const SalaryAdvanceLogs = () => {
       try {
         await API.put(`/reports/salary-logs/${salaryLogId}/paid`, { paid: newPaidStatus });
         toast.success(`Salary marked as ${newPaidStatus ? 'PAID' : 'UNPAID'} successfully!`);
-        fetchLogs(); // Refresh logs
+        fetchLogs();
       } catch (error) {
         toast.error(`Failed to update paid status: ${error.response?.data?.message || error.message}`);
         console.error('Error updating paid status:', error);
       }
     }
   };
+
+  // NEW: Handle individual checkbox change
+  const handleCheckboxChange = (id) => {
+    setSelectedSalaryLogIds((prevSelected) => {
+      const newSelected = new Set(prevSelected);
+      if (newSelected.has(id)) {
+        newSelected.delete(id);
+      } else {
+        newSelected.add(id);
+      }
+      return newSelected;
+    });
+  };
+
+  // NEW: Handle "Select All" checkbox change
+  const handleSelectAllChange = (e) => {
+    const checked = e.target.checked;
+    setIsSelectAllChecked(checked);
+    setSelectedSalaryLogIds((prevSelected) => {
+      const newSelected = new Set();
+      if (checked) {
+        salaryLogs.forEach(log => newSelected.add(log._id));
+      }
+      return newSelected;
+    });
+  };
+
+  // NEW: Handle marking selected salaries as paid/unpaid
+  const handleMarkSelected = async (status) => {
+    if (selectedSalaryLogIds.size === 0) {
+      toast.info('No salaries selected to update.');
+      return;
+    }
+
+    const confirmation = status
+      ? `Are you sure you want to mark ${selectedSalaryLogIds.size} selected salaries as PAID?`
+      : `Are you sure you want to mark ${selectedSalaryLogIds.size} selected salaries as UNPAID?`;
+
+    if (window.confirm(confirmation)) {
+      let successCount = 0;
+      let failCount = 0;
+      setLoading(true);
+
+      for (const id of selectedSalaryLogIds) {
+        const logToUpdate = salaryLogs.find(log => log._id === id);
+        if (logToUpdate && logToUpdate.paid !== status) { // Only update if status is different
+          try {
+            await API.put(`/reports/salary-logs/${id}/paid`, { paid: status });
+            successCount++;
+          } catch (error) {
+            console.error(`Failed to update salary log ${id}:`, error);
+            failCount++;
+          }
+        }
+      }
+
+      setLoading(false);
+      if (successCount > 0) {
+        toast.success(`${successCount} salaries marked as ${status ? 'PAID' : 'UNPAID'} successfully!`);
+      }
+      if (failCount > 0) {
+        toast.error(`${failCount} salaries failed to update.`);
+      }
+      fetchLogs(); // Refresh logs after bulk update
+    }
+  };
+
 
   const handleAddAdvance = () => {
     setSelectedAdvance(null);
@@ -151,7 +235,17 @@ const SalaryAdvanceLogs = () => {
     setIsAdvanceModalOpen(false);
   };
 
-  const salaryTableHeaders = ['Worker', 'Site', 'Week Start', 'Week End', 'Att. Days', 'Gross Salary', 'Advance Deducted', 'Net Salary', 'Paid', 'Actions'];
+  // NEW: Modified salaryTableHeaders to include a checkbox column
+  const salaryTableHeaders = [
+    <input
+      type="checkbox"
+      checked={isSelectAllChecked}
+      onChange={handleSelectAllChange}
+      className="form-checkbox h-4 w-4 text-indigo-600 transition duration-150 ease-in-out"
+      title="Select All"
+    />,
+    'Worker', 'Site', 'Week Start', 'Week End', 'Att. Days', 'Gross Salary', 'Advance Deducted', 'Net Salary', 'Paid', 'Actions'
+  ];
   const advanceTableHeaders = ['Worker Name', 'Site', 'Amount', 'Date', 'Reason', 'Recorded By', 'Actions'];
 
   if (loading) {
@@ -260,7 +354,25 @@ const SalaryAdvanceLogs = () => {
         <h3 className="text-2xl font-semibold text-gray-800 mb-4 flex items-center">
           <FaMoneyBillAlt className="mr-3 text-green-600" /> Weekly Salary Logs
         </h3>
-        <div className="flex justify-end mb-4">
+        <div className="flex justify-between items-center mb-4">
+          <div className="flex space-x-3">
+            {/* NEW: Mark Selected as Paid Button */}
+            <button
+              onClick={() => handleMarkSelected(true)}
+              className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md shadow hover:bg-green-700 disabled:opacity-50"
+              disabled={loading || selectedSalaryLogIds.size === 0}
+            >
+              <FaCheckDouble className="mr-2" /> Mark Selected as Paid
+            </button>
+            {/* NEW: Mark Selected as Unpaid Button */}
+            <button
+              onClick={() => handleMarkSelected(false)}
+              className="flex items-center px-4 py-2 bg-red-600 text-white rounded-md shadow hover:bg-red-700 disabled:opacity-50"
+              disabled={loading || selectedSalaryLogIds.size === 0}
+            >
+              <FaBan className="mr-2" /> Mark Selected as Unpaid
+            </button>
+          </div>
           <button
             onClick={handleCalculateSalaries}
             className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md shadow hover:bg-blue-700 disabled:opacity-50"
@@ -275,6 +387,15 @@ const SalaryAdvanceLogs = () => {
           emptyMessage="No weekly salary logs found."
           renderRow={(log) => (
             <tr key={log._id} className="hover:bg-gray-50">
+              {/* NEW: Individual Checkbox */}
+              <td className="px-5 py-3 border-b border-gray-200 bg-white text-sm">
+                <input
+                  type="checkbox"
+                  checked={selectedSalaryLogIds.has(log._id)}
+                  onChange={() => handleCheckboxChange(log._id)}
+                  className="form-checkbox h-4 w-4 text-indigo-600 transition duration-150 ease-in-out"
+                />
+              </td>
               <td className="px-5 py-3 border-b border-gray-200 bg-white text-sm">
                 {log.workerId?.name || 'N/A'}
               </td>

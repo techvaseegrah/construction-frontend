@@ -1,17 +1,17 @@
-// contract/frontend/src/pages/Admin/RawMaterialLogs.js
+// construction/frontend/src/pages/Admin/RawMaterialLogs.js
 import React, { useEffect, useState } from 'react';
 import API from '../../api/axios';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Table from '../../components/common/Table';
 import Modal from '../../components/common/Modal';
-import MaterialLogForm from '../../components/supervisor/MaterialLogForm';
-import { FaFilter, FaPlus, FaEdit, FaTrash } from 'react-icons/fa';
+import MaterialLogForm from '../../components/supervisor/MaterialLogForm'; // Reusing supervisor's form
+import { FaFilter, FaPlus, FaEdit, FaTrash, FaBoxOpen } from 'react-icons/fa';
 
 const RawMaterialLogs = () => {
   const [materialLogs, setMaterialLogs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [sites, setSites] = useState([]);
+  const [sites, setSites] = useState([]); // For filter dropdown
   const [filters, setFilters] = useState({ siteId: '', material: '', startDate: '', endDate: '' });
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -21,7 +21,7 @@ const RawMaterialLogs = () => {
     setLoading(true);
     try {
       const params = new URLSearchParams(filters).toString();
-      const res = await API.get(`/materials?${params}`);
+      const res = await API.get(`/materials?${params}`); // Admin can fetch all materials
       setMaterialLogs(res.data);
     } catch (error) {
       toast.error('Failed to load material logs.');
@@ -33,7 +33,7 @@ const RawMaterialLogs = () => {
 
   const fetchSites = async () => {
     try {
-      const res = await API.get('/projects');
+      const res = await API.get('/projects'); // Admin can see all projects
       setSites(res.data);
     } catch (error) {
       toast.error('Failed to load sites for filter.');
@@ -43,8 +43,12 @@ const RawMaterialLogs = () => {
 
   useEffect(() => {
     fetchSites();
-    fetchMaterialLogs();
+    fetchMaterialLogs(); // Initial fetch
   }, []);
+
+  useEffect(() => {
+    fetchMaterialLogs(); // Refetch when filters change
+  }, [filters]);
 
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
@@ -55,7 +59,6 @@ const RawMaterialLogs = () => {
 
   const resetFilters = () => {
     setFilters({ siteId: '', material: '', startDate: '', endDate: '' });
-    fetchMaterialLogs();
   };
 
   const handleAddLog = () => {
@@ -201,10 +204,10 @@ const RawMaterialLogs = () => {
               {log.unit}
             </td>
             <td className="px-5 py-3 border-b border-gray-200 bg-white text-sm">
-              ${log.pricePerUnit.toFixed(2)}
+              ₹{log.pricePerUnit.toFixed(2)} {/* MODIFIED: Changed $ to ₹ */}
             </td>
             <td className="px-5 py-3 border-b border-gray-200 bg-white text-sm">
-              ${log.total.toFixed(2)}
+              ₹{log.total.toFixed(2)} {/* MODIFIED: Changed $ to ₹ */}
             </td>
             <td className="px-5 py-3 border-b border-gray-200 bg-white text-sm">
               {new Date(log.date).toLocaleDateString()}
@@ -240,6 +243,7 @@ const RawMaterialLogs = () => {
           materialEntry={selectedMaterialLog}
           onSave={handleSaveLog}
           onClose={() => setIsModalOpen(false)}
+          siteId={filters.siteId}
         />
       </Modal>
 
